@@ -1,4 +1,4 @@
-//! Various rustified  Win API's for pleasant and safe use with Rust.
+//! Various rustified  WinAPI's for pleasant and safe use with Rust.
 
 pub mod auto_bstr;
 pub mod safe;
