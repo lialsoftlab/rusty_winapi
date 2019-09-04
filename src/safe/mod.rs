@@ -1,2 +1,4 @@
-/// Safe conterparts of functions from Win API.
+//! Safe counterparts of WinAPI functions
+//! 
+
 pub mod bstr;

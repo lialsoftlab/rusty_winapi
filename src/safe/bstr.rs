@@ -1,6 +1,17 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
-///! Safe Win API functions counterparts for BSTR strings management.
+//! Safe counterparts of WinAPI functions for BSTR strings management.
+//! 
+//! Take a look at [`AutoBSTR`] instead of direct use of this functions, for automatic handling and conversion from/to [`String`].
+//! 
+//! See also: [BSTR] at MSDN, [Eric’s Complete Guide To BSTR Semantics], and [BSTR specification].
+//! 
+//! [`AutoBSTR`]: ../../auto_bstr/struct.AutoBSTR.html
+//! [Eric’s Complete Guide To BSTR Semantics]: https://blogs.msdn.microsoft.com/ericlippert/2003/09/12/erics-complete-guide-to-bstr-semantics/
+//! [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
+//! [BSTR specification]: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/692a42a9-06ce-4394-b9bc-5d2a50440168
+//! [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
+//! 
 
 use std::convert::TryFrom;
 
@@ -16,11 +27,11 @@ pub enum SysAllocError {
     SourceStringTooLongError,
 }
 
-/// Allocates a new BSTR string and copies the passed UTF-16 null-terminated source string into it.
+/// Allocates a new [BSTR] string and copies the passed UTF-16 null-terminated source string into it.
 ///
-/// If source is a zero-length string, returns a new zero-length BSTR string.
+/// If source is a zero-length string, returns a new zero-length [BSTR] string.
 /// 
-/// See also [`MSDN SysAllocString`] description.
+/// See also [MSDN SysAllocString] description.
 /// 
 /// # Errors
 /// 
@@ -40,8 +51,9 @@ pub enum SysAllocError {
 ///     SysFreeString(bstr);
 /// ```
 /// 
+/// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [`BStrAllocationError`]: enum.SysAllocError.html#variant.BStrAllocationError
-/// [`MSDN SysAllocString`]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysallocstring
+/// [MSDN SysAllocString]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysallocstring
 /// [`NullTerminatedStringRequiredError`]: enum.SysAllocError.html#variant.NullTerminatedStringRequiredError
 pub fn SysAllocString(src: &[u16]) -> Result<BSTR, SysAllocError> {
     // Source string must be null-terminated.
@@ -58,11 +70,11 @@ pub fn SysAllocString(src: &[u16]) -> Result<BSTR, SysAllocError> {
 }
 
 /// Reallocates a previously allocated string to be the size of a UTF-16 null-terminated source string and copies the source
-/// string into the reallocated memory. Then frees the old BSTR.
+/// string into the reallocated memory. Then frees the old [BSTR].
 /// 
-/// If source is a zero-length string, returns a zero-length BSTR.
+/// If source is a zero-length string, returns a zero-length [BSTR].
 ///
-/// See also [`MSDN SysReAllocString`] description.
+/// See also [MSDN SysReAllocString] description.
 /// 
 /// # Errors
 /// 
@@ -85,9 +97,10 @@ pub fn SysAllocString(src: &[u16]) -> Result<BSTR, SysAllocError> {
 /// SysFreeString(bstr);
 /// ```
 /// 
+/// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [`BStrAllocationError`]: enum.SysAllocError.html#variant.BStrAllocationError
 /// [`InvalidPointerError`]: enum.SysAllocError.html#variant.InvalidPointerError
-/// [`MSDN SysReAllocString`]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysreallocstring
+/// [MSDN SysReAllocString]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysreallocstring
 /// [`NullTerminatedStringRequiredError`]: enum.SysAllocError.html#variant.NullTerminatedStringRequiredError
 pub fn SysReAllocString(bstr: BSTR, src: &[u16]) -> Result<BSTR, SysAllocError> {
     // If pbstr is NULL, there will be an access violation and the program will crash.
@@ -114,12 +127,12 @@ pub fn SysReAllocString(bstr: BSTR, src: &[u16]) -> Result<BSTR, SysAllocError> 
     }
 }
 
-/// Allocates a new string, copies the passed UTF-16 source string into it (max up to std::u32::MAX characters),
+/// Allocates a new [BSTR] string, copies the passed UTF-16 source string into it (max up to std::u32::MAX characters),
 /// and appends a null-terminating character.
 ///
 /// The string can contain embedded null characters and does not need to end with a NULL.
 /// 
-/// See also [`MSDN SysAllocStringLen`] description.
+/// See also [MSDN SysAllocStringLen] description.
 /// 
 /// # Errors
 /// 
@@ -139,8 +152,9 @@ pub fn SysReAllocString(bstr: BSTR, src: &[u16]) -> Result<BSTR, SysAllocError> 
 /// SysFreeString(bstr);
 /// ```
 ///
+/// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [`BStrAllocationError`]: enum.SysAllocError.html#variant.BStrAllocationError
-/// [`MSDN SysAllocStringLen`]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysallocstringlen
+/// [MSDN SysAllocStringLen]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysallocstringlen
 /// [`SourceStringTooLongError`]: enum.SysAllocError.html#variant.SourceStringTooLongError
 pub fn SysAllocStringLen(src: &[u16]) -> Result<BSTR, SysAllocError> {
     let len: u32 = match TryFrom::try_from(src.len()) {
@@ -156,13 +170,13 @@ pub fn SysAllocStringLen(src: &[u16]) -> Result<BSTR, SysAllocError> {
     }
 }
 
-/// Reallocates a previously allocated string to be the size of a UTF-16 source string and copies the source
+/// Reallocates a previously allocated [BSTR] string to be the size of a UTF-16 source string and copies the source
 /// string into the reallocated memory (max up to std::u32::MAX characters). Then frees the old BSTR.
 ///
 /// The string can contain embedded null characters and does not need to end with a NULL.
-/// If source is a zero-length string, returns a zero-length BSTR.
+/// If source is a zero-length string, returns a zero-length [BSTR].
 /// 
-/// See also [`MSDN SysReAllocStringLen`] description.
+/// See also [MSDN SysReAllocStringLen] description.
 /// 
 /// # Errors
 /// 
@@ -185,9 +199,10 @@ pub fn SysAllocStringLen(src: &[u16]) -> Result<BSTR, SysAllocError> {
 /// SysFreeString(bstr);
 /// ```
 /// 
+/// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [`BStrAllocationError`]: enum.SysAllocError.html#variant.BStrAllocationError
 /// [`InvalidPointerError`]: enum.SysAllocError.html#variant.InvalidPointerError
-/// [`MSDN SysReAllocStringLen`]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysreallocstringlen
+/// [MSDN SysReAllocStringLen]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysreallocstringlen
 /// [`SourceStringTooLongError`]: enum.SysAllocError.html#variant.SourceStringTooLongError
 pub fn SysReAllocStringLen(bstr: BSTR, src: &[u16]) -> Result<BSTR, SysAllocError> {
     let len: u32 = match TryFrom::try_from(src.len()) {
@@ -214,13 +229,14 @@ pub fn SysReAllocStringLen(bstr: BSTR, src: &[u16]) -> Result<BSTR, SysAllocErro
     }
 }
 
-/// Returns the length of a BSTR.
+/// Returns the length of a [BSTR].
 ///
 /// The number of characters in bstr, not including the terminating NULL character. If bstr is NULL the return value is zero.
-/// The returned value may be different from strlen(bstr) if the BSTR contains embedded NULL characters.
-/// This function always returns the number of characters specified in the cch parameter of the SysAllocStringLen function used to allocate the BSTR.
+/// The returned value may be different from strlen(bstr) if the [BSTR] contains embedded NULL characters.
+/// This function always returns the number of characters specified in the cch parameter of the [MSDN SysAllocStringLen] 
+/// function used to allocate the [BSTR].
 /// 
-/// See also [`MSDN SysStringLen`] description.
+/// See also [MSDN SysStringLen] description.
 /// 
 /// # Examples
 /// 
@@ -234,17 +250,20 @@ pub fn SysReAllocStringLen(bstr: BSTR, src: &[u16]) -> Result<BSTR, SysAllocErro
 /// SysFreeString(bstr);
 /// ```
 /// 
-/// [`MSDN SysStringLen`]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysstringlen
+/// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
+/// [MSDN SysAllocStringLen]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysallocstringlen
+/// [MSDN SysStringLen]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysstringlen
 #[inline]
 pub fn SysStringLen(bstr: BSTR) -> UINT {
     unsafe { winapi::um::oleauto::SysStringLen(bstr) }
 }
 
-/// Deallocates a string allocated previously by SysAllocString, SysAllocStringByteLen, SysReAllocString, SysAllocStringLen, or SysReAllocStringLen.
+/// Deallocates a [BSTR] string allocated previously by [`SysAllocString`], [`SysAllocStringByteLen`], [`SysReAllocString`], 
+/// [`SysAllocStringLen`], or [`SysReAllocStringLen`].
 ///
 /// This function does not return a value. If this parameter is NULL, the function simply returns.
 /// 
-/// See also [`MSDN SysFreeString`] description.
+/// See also [MSDN SysFreeString] description.
 /// 
 /// # Examples
 /// 
@@ -256,7 +275,13 @@ pub fn SysStringLen(bstr: BSTR) -> UINT {
 /// SysFreeString(bstr);
 /// ```
 /// 
-/// [`MSDN SysFreeString`]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysfreestring
+/// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
+/// [MSDN SysFreeString]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysfreestring
+/// [`SysAllocString`]: fn.SysAllocString.html
+/// [`SysAllocStringByteLen`]: fn.SysAllocStringByteLen.html
+/// [`SysReAllocString`]: fn.SysReAllocString.html
+/// [`SysAllocStringLen`]: fn.SysAllocStringLen.html
+/// [`SysReAllocStringLen`]: fn.SysReAllocStringLen.html
 #[inline]
 pub fn SysFreeString(bstr: BSTR) {
     unsafe {

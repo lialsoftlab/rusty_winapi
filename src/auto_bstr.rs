@@ -1,5 +1,17 @@
 #![allow(non_camel_case_types, non_snake_case, unused)]
 
+//! Container for BSTR-type strings with automatic handling and conversion from/to [`String`].
+//! 
+//! Based on a [safe BSTR functions].
+//! 
+//! See also: [BSTR] at MSDN, [Eric’s Complete Guide To BSTR Semantics], and [BSTR specification].
+//! 
+//! [Eric’s Complete Guide To BSTR Semantics]: https://blogs.msdn.microsoft.com/ericlippert/2003/09/12/erics-complete-guide-to-bstr-semantics/
+//! [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
+//! [BSTR specification]: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/692a42a9-06ce-4394-b9bc-5d2a50440168
+//! [safe BSTR functions]: ../safe/bstr/index.html
+//! [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
+
 use std::cell::Cell;
 use std::convert::{TryFrom, TryInto};
 
@@ -8,7 +20,9 @@ use winapi::shared::wtypes::BSTR;
 
 use super::safe::bstr::*;
 
-/// Container for BSTR-type strings with automatic conversion and memory managment.
+/// Container for BSTR-type strings with automatic handling and conversion from/to [`String`].
+/// 
+/// [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
 pub struct AutoBSTR (Cell<BSTR>);
 
 impl AutoBSTR {
