@@ -18,7 +18,7 @@ use std::convert::{TryFrom, TryInto};
 use winapi::shared::ntdef::{NULL, PVOID};
 use winapi::shared::wtypes::BSTR;
 
-use super::safe::bstr::*;
+use crate::safe::bstr::*;
 
 /// Container for BSTR-type strings with automatic handling and conversion from/to [`String`].
 /// 

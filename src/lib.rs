@@ -2,6 +2,7 @@
 
 pub mod auto_bstr;
 pub mod safe;
+pub mod smart_variant;
 
 // #[cfg(test)]
 // mod tests {
