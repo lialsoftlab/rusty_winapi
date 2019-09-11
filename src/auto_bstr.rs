@@ -45,6 +45,10 @@ impl AutoBSTR {
     }
 }
 
+impl Default for AutoBSTR {
+    fn default() -> Self { AutoBSTR(Cell::new(std::ptr::null_mut())) }
+}
+
 impl Drop for AutoBSTR {
     fn drop(&mut self) {
         SysFreeString(self.0.get()); // NULL is ok, function just returns.
@@ -75,7 +79,13 @@ impl From<AutoBSTR> for String {
     /// Convert from AutoBSTR instance into UTF-8 encoded Rust String.
     #[inline]
     fn from(x: AutoBSTR) -> Self {
-        String::from_utf16_lossy(x.into())
+        let bstr = x.0.get();
+
+        if bstr == std::ptr::null_mut() { 
+            "".into()
+        } else {
+            String::from_utf16_lossy(x.try_into().unwrap())
+        }
     }
 }
 
@@ -97,11 +107,15 @@ impl From<AutoBSTR> for BSTR {
     }
 }
 
-impl From<AutoBSTR> for &[u16] {
+impl <'a>TryFrom<AutoBSTR> for &'a [u16] {
+    type Error = ();
+
     /// AutoBSTR instance into [u16] slice reference
-    fn from(x: AutoBSTR) -> Self {
+    fn try_from(x: AutoBSTR) -> Result<&'a [u16], Self::Error> {
         let bstr = x.0.get();
-        unsafe { std::slice::from_raw_parts(bstr, SysStringLen(bstr) as usize) }
+        if bstr != std::ptr::null_mut() {
+            unsafe { Ok(std::slice::from_raw_parts(bstr, SysStringLen(bstr) as usize)) }
+        } else { Err(()) }
     }
 }
 
