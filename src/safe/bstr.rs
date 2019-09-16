@@ -1,17 +1,17 @@
 #![allow(non_camel_case_types, non_snake_case)]
 
 //! Safe counterparts of WinAPI functions for BSTR strings management.
-//! 
+//!
 //! Take a look at [`AutoBSTR`] instead of direct use of this functions, for automatic handling and conversion from/to [`String`].
-//! 
+//!
 //! See also: [BSTR] at MSDN, [Eric’s Complete Guide To BSTR Semantics], and [BSTR specification].
-//! 
+//!
 //! [`AutoBSTR`]: ../../auto_bstr/struct.AutoBSTR.html
 //! [Eric’s Complete Guide To BSTR Semantics]: https://blogs.msdn.microsoft.com/ericlippert/2003/09/12/erics-complete-guide-to-bstr-semantics/
 //! [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 //! [BSTR specification]: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/692a42a9-06ce-4394-b9bc-5d2a50440168
 //! [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
-//! 
+//!
 
 use std::convert::TryFrom;
 
@@ -30,27 +30,27 @@ pub enum SysAllocError {
 /// Allocates a new [BSTR] string and copies the passed UTF-16 null-terminated source string into it.
 ///
 /// If source is a zero-length string, returns a new zero-length [BSTR] string.
-/// 
+///
 /// See also [MSDN SysAllocString] description.
-/// 
+///
 /// # Errors
-/// 
+///
 /// * If source is not null-terminated, returns [`NullTerminatedStringRequiredError`].
 /// * If insufficient memory exists, returns [`BStrAllocationError`].
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 ///     use rusty_winapi::safe::bstr::{SysAllocString, SysFreeString, SysStringLen};
-/// 
+///
 ///     let test_string: Vec<u16> = "Test string.\u{0000} (buffer may be longer)".encode_utf16().collect();
 ///     let bstr = SysAllocString(&test_string).expect("BSTR");
 ///     let bstr_slice = unsafe { std::slice::from_raw_parts(bstr, SysStringLen(bstr) as usize) };
-/// 
+///
 ///     assert_eq!("Test string.", String::from_utf16_lossy(bstr_slice));
 ///     SysFreeString(bstr);
 /// ```
-/// 
+///
 /// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [`BStrAllocationError`]: enum.SysAllocError.html#variant.BStrAllocationError
 /// [MSDN SysAllocString]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysallocstring
@@ -71,32 +71,32 @@ pub fn SysAllocString(src: &[u16]) -> Result<BSTR, SysAllocError> {
 
 /// Reallocates a previously allocated string to be the size of a UTF-16 null-terminated source string and copies the source
 /// string into the reallocated memory. Then frees the old [BSTR].
-/// 
+///
 /// If source is a zero-length string, returns a zero-length [BSTR].
 ///
 /// See also [MSDN SysReAllocString] description.
-/// 
+///
 /// # Errors
-/// 
+///
 /// * If bstr is NULL or points into source memory range, returns [`InvalidPointerError`].
 /// * If source is not null-terminated, returns [`NullTerminatedStringRequiredError`].
 /// * If insufficient memory exists, returns [`BStrAllocationError`].
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use rusty_winapi::safe::bstr::{SysAllocString, SysFreeString, SysReAllocString, SysStringLen};
-/// 
+///
 /// let test_string: Vec<u16> = "Test string.\u{0000} (buffer may be longer)".encode_utf16().collect();
 /// let bstr = SysAllocString(&test_string).expect("BSTR");
 /// let test_string: Vec<u16> = "New test string.\u{0000}".encode_utf16().collect();
 /// let bstr = SysReAllocString(bstr, &test_string).expect("BSTR");
 /// let bstr_slice = unsafe { std::slice::from_raw_parts(bstr, SysStringLen(bstr) as usize) };
-/// 
+///
 /// assert_eq!("New test string.", String::from_utf16_lossy(bstr_slice));
 /// SysFreeString(bstr);
 /// ```
-/// 
+///
 /// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [`BStrAllocationError`]: enum.SysAllocError.html#variant.BStrAllocationError
 /// [`InvalidPointerError`]: enum.SysAllocError.html#variant.InvalidPointerError
@@ -131,23 +131,23 @@ pub fn SysReAllocString(bstr: BSTR, src: &[u16]) -> Result<BSTR, SysAllocError> 
 /// and appends a null-terminating character.
 ///
 /// The string can contain embedded null characters and does not need to end with a NULL.
-/// 
+///
 /// See also [MSDN SysAllocStringLen] description.
-/// 
+///
 /// # Errors
-/// 
+///
 /// * If there is insufficient memory to complete the operation, returns [`BStrAllocationError`].
 /// * If source string length is more than std::u32::MAX, returns [`SourceStringTooLongError`].
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use rusty_winapi::safe::bstr::{SysAllocStringLen, SysFreeString, SysStringLen};
-/// 
+///
 /// let test_string: Vec<u16> = "Test string.".encode_utf16().collect();
 /// let bstr = SysAllocStringLen(&test_string).expect("BSTR");
 /// let bstr_slice = unsafe { std::slice::from_raw_parts(bstr, SysStringLen(bstr) as usize) };
-/// 
+///
 /// assert_eq!("Test string.", String::from_utf16_lossy(bstr_slice));
 /// SysFreeString(bstr);
 /// ```
@@ -175,30 +175,30 @@ pub fn SysAllocStringLen(src: &[u16]) -> Result<BSTR, SysAllocError> {
 ///
 /// The string can contain embedded null characters and does not need to end with a NULL.
 /// If source is a zero-length string, returns a zero-length [BSTR].
-/// 
+///
 /// See also [MSDN SysReAllocStringLen] description.
-/// 
+///
 /// # Errors
-/// 
+///
 /// * If bstr is NULL or points into source memory range, returns [`InvalidPointerError`].
 /// * If source string length is more than std::u32::MAX, returns [`SourceStringTooLongError`].
 /// * If insufficient memory exists, returns [`BStrAllocationError`].
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use rusty_winapi::safe::bstr::{SysAllocStringLen, SysFreeString, SysReAllocStringLen, SysStringLen};
-/// 
+///
 /// let test_string: Vec<u16> = "Test string.".encode_utf16().collect();
 /// let bstr = SysAllocStringLen(&test_string).expect("BSTR");
 /// let test_string: Vec<u16> = "New test string.".encode_utf16().collect();
 /// let bstr = SysReAllocStringLen(bstr, &test_string).expect("BSTR");
 /// let bstr_slice = unsafe { std::slice::from_raw_parts(bstr, SysStringLen(bstr) as usize) };
-/// 
+///
 /// assert_eq!("New test string.", String::from_utf16_lossy(bstr_slice));
 /// SysFreeString(bstr);
 /// ```
-/// 
+///
 /// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [`BStrAllocationError`]: enum.SysAllocError.html#variant.BStrAllocationError
 /// [`InvalidPointerError`]: enum.SysAllocError.html#variant.InvalidPointerError
@@ -233,23 +233,23 @@ pub fn SysReAllocStringLen(bstr: BSTR, src: &[u16]) -> Result<BSTR, SysAllocErro
 ///
 /// The number of characters in bstr, not including the terminating NULL character. If bstr is NULL the return value is zero.
 /// The returned value may be different from strlen(bstr) if the [BSTR] contains embedded NULL characters.
-/// This function always returns the number of characters specified in the cch parameter of the [MSDN SysAllocStringLen] 
+/// This function always returns the number of characters specified in the cch parameter of the [MSDN SysAllocStringLen]
 /// function used to allocate the [BSTR].
-/// 
+///
 /// See also [MSDN SysStringLen] description.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use rusty_winapi::safe::bstr::{SysAllocStringLen, SysFreeString, SysStringLen};
-/// 
+///
 /// let test_string: Vec<u16> = "Test string.".encode_utf16().collect();
 /// let bstr = SysAllocStringLen(&test_string).expect("BSTR");
-/// 
+///
 /// assert_eq!(12, SysStringLen(bstr));
 /// SysFreeString(bstr);
 /// ```
-/// 
+///
 /// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [MSDN SysAllocStringLen]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysallocstringlen
 /// [MSDN SysStringLen]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysstringlen
@@ -258,23 +258,23 @@ pub fn SysStringLen(bstr: BSTR) -> UINT {
     unsafe { winapi::um::oleauto::SysStringLen(bstr) }
 }
 
-/// Deallocates a [BSTR] string allocated previously by [`SysAllocString`], [`SysAllocStringByteLen`], [`SysReAllocString`], 
+/// Deallocates a [BSTR] string allocated previously by [`SysAllocString`], [`SysAllocStringByteLen`], [`SysReAllocString`],
 /// [`SysAllocStringLen`], or [`SysReAllocStringLen`].
 ///
 /// This function does not return a value. If this parameter is NULL, the function simply returns.
-/// 
+///
 /// See also [MSDN SysFreeString] description.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use rusty_winapi::safe::bstr::{SysAllocStringLen, SysFreeString, SysStringLen};
-/// 
+///
 /// let test_string: Vec<u16> = "Test string.".encode_utf16().collect();
 /// let bstr = SysAllocStringLen(&test_string).expect("BSTR");
 /// SysFreeString(bstr);
 /// ```
-/// 
+///
 /// [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 /// [MSDN SysFreeString]: https://docs.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysfreestring
 /// [`SysAllocString`]: fn.SysAllocString.html
@@ -291,21 +291,26 @@ pub fn SysFreeString(bstr: BSTR) {
 
 #[inline(always)]
 fn bstr_src_intersection(bstr: BSTR, src: &[u16]) -> bool {
-    const SIZE_OF_U16 : isize = std::mem::size_of::<u16>() as isize;
+    const SIZE_OF_U16: isize = std::mem::size_of::<u16>() as isize;
 
-    if src.len() == 0 || src.len() > std::u32::MAX as usize || bstr as PVOID == NULL { return false }; // src.len() == 0 is equal to NULL pointer by meaning.
+    if src.len() == 0 || src.len() > std::u32::MAX as usize || bstr as PVOID == NULL {
+        return false;
+    }; // src.len() == 0 is equal to NULL pointer by meaning.
 
     // Real BSTR buffer len = {4-byte LenCounter} + SysStringLen() * 2 + 2-byte EOL 0x0000 marker.
     let bstr_start_ptr = bstr as *const u8;
     let bstr_start_ptr = unsafe { bstr_start_ptr.offset(-4) }; // taking in account 32-bit buffer size counter before buffer.
-    let bstr_end_ptr = unsafe { bstr_start_ptr.offset(4 + SysStringLen(bstr) as isize * SIZE_OF_U16 + 1 * SIZE_OF_U16 - 1) }; // ptr to last byte in buffer.
+    let bstr_end_ptr = unsafe {
+        bstr_start_ptr.offset(4 + SysStringLen(bstr) as isize * SIZE_OF_U16 + 1 * SIZE_OF_U16 - 1)
+    }; // ptr to last byte in buffer.
     debug_assert!(bstr_start_ptr < bstr_end_ptr); // empty BSTR anyway contains counter + 0x0000 marker in buffer;
-    
+
     let src_start_ptr = &src[0] as *const u16 as *const u8;
-    let src_end_ptr =  unsafe { src_start_ptr.offset(src.len() as isize * SIZE_OF_U16 - 1) }; // ptr to last byte in slice
+    let src_end_ptr = unsafe { src_start_ptr.offset(src.len() as isize * SIZE_OF_U16 - 1) }; // ptr to last byte in slice
     debug_assert!(src_start_ptr < src_end_ptr); // src.len() > 0 a must.
-    
-    (bstr_start_ptr <= src_start_ptr && src_start_ptr <= bstr_end_ptr ) || (src_start_ptr <= bstr_start_ptr &&  bstr_start_ptr <= src_end_ptr)
+
+    (bstr_start_ptr <= src_start_ptr && src_start_ptr <= bstr_end_ptr)
+        || (src_start_ptr <= bstr_start_ptr && bstr_start_ptr <= src_end_ptr)
 }
 
 #[cfg(test)]
@@ -461,7 +466,7 @@ mod tests {
         let test_line_utf16: Vec<u16> = TEST_LINE.encode_utf16().collect();
         let bstr = SysAllocStringLen(&test_line_utf16).unwrap();
 
-        // src before bstr 
+        // src before bstr
         let src: &[u16] = unsafe { std::slice::from_raw_parts(bstr.offset(-4), 2) };
         assert!(!bstr_src_intersection(bstr, src));
 
@@ -470,19 +475,23 @@ mod tests {
         assert!(bstr_src_intersection(bstr, src));
 
         // src = bstr (+ 32 counter and 0x0000 EOL marker)
-        let src: &[u16] = unsafe { std::slice::from_raw_parts(bstr.offset(-2), 2 + SysStringLen(bstr) as usize + 1) };
+        let src: &[u16] = unsafe {
+            std::slice::from_raw_parts(bstr.offset(-2), 2 + SysStringLen(bstr) as usize + 1)
+        };
         assert!(bstr_src_intersection(bstr, src));
 
-        // src inside bstr 
+        // src inside bstr
         let src: &[u16] = unsafe { std::slice::from_raw_parts(bstr.offset(2), 2) };
         assert!(bstr_src_intersection(bstr, src));
 
         // src after bstr with intersection
-        let src: &[u16] = unsafe { std::slice::from_raw_parts(bstr.offset(SysStringLen(bstr) as isize - 1), 4) };
+        let src: &[u16] =
+            unsafe { std::slice::from_raw_parts(bstr.offset(SysStringLen(bstr) as isize - 1), 4) };
         assert!(bstr_src_intersection(bstr, src));
 
         // src after bstr
-        let src: &[u16] = unsafe { std::slice::from_raw_parts(bstr.offset(SysStringLen(bstr) as isize + 1), 2) };
+        let src: &[u16] =
+            unsafe { std::slice::from_raw_parts(bstr.offset(SysStringLen(bstr) as isize + 1), 2) };
         assert!(!bstr_src_intersection(bstr, src));
     }
 }
