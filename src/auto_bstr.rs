@@ -1,11 +1,11 @@
 #![allow(non_camel_case_types, non_snake_case, unused)]
 
 //! Container for BSTR-type strings with automatic handling and conversion from/to [`String`].
-//! 
+//!
 //! Based on a [safe BSTR functions].
-//! 
+//!
 //! See also: [BSTR] at MSDN, [Eric’s Complete Guide To BSTR Semantics], and [BSTR specification].
-//! 
+//!
 //! [Eric’s Complete Guide To BSTR Semantics]: https://blogs.msdn.microsoft.com/ericlippert/2003/09/12/erics-complete-guide-to-bstr-semantics/
 //! [BSTR]: https://docs.microsoft.com/en-us/previous-versions/windows/desktop/automat/bstr/
 //! [BSTR specification]: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/692a42a9-06ce-4394-b9bc-5d2a50440168
@@ -18,12 +18,12 @@ use std::convert::{TryFrom, TryInto};
 use winapi::shared::ntdef::{NULL, PVOID};
 use winapi::shared::wtypes::BSTR;
 
-use super::safe::bstr::*;
+use crate::safe::bstr::*;
 
 /// Container for BSTR-type strings with automatic handling and conversion from/to [`String`].
-/// 
+///
 /// [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
-pub struct AutoBSTR (Cell<BSTR>);
+pub struct AutoBSTR(Cell<BSTR>);
 
 impl AutoBSTR {
     /// Unconditional freeing allocated memory for BSTR instance now.
@@ -42,6 +42,12 @@ impl AutoBSTR {
     #[inline]
     pub fn as_mut_ptr(&mut self) -> *mut BSTR {
         self.0.as_ptr()
+    }
+}
+
+impl Default for AutoBSTR {
+    fn default() -> Self {
+        AutoBSTR(Cell::new(std::ptr::null_mut()))
     }
 }
 
@@ -75,7 +81,13 @@ impl From<AutoBSTR> for String {
     /// Convert from AutoBSTR instance into UTF-8 encoded Rust String.
     #[inline]
     fn from(x: AutoBSTR) -> Self {
-        String::from_utf16_lossy(x.into())
+        let bstr = x.0.get();
+
+        if bstr == std::ptr::null_mut() {
+            "".into()
+        } else {
+            String::from_utf16_lossy(x.try_into().unwrap())
+        }
     }
 }
 
@@ -83,7 +95,7 @@ impl From<BSTR> for AutoBSTR {
     /// Wrap existing BSTR instance into AutoBSTR with responsibility to free memory on drop.
     #[inline]
     fn from(x: BSTR) -> Self {
-        AutoBSTR(Cell::new(x)) 
+        AutoBSTR(Cell::new(x))
     }
 }
 
@@ -97,11 +109,22 @@ impl From<AutoBSTR> for BSTR {
     }
 }
 
-impl From<AutoBSTR> for &[u16] {
+impl<'a> TryFrom<AutoBSTR> for &'a [u16] {
+    type Error = ();
+
     /// AutoBSTR instance into [u16] slice reference
-    fn from(x: AutoBSTR) -> Self {
+    fn try_from(x: AutoBSTR) -> Result<&'a [u16], Self::Error> {
         let bstr = x.0.get();
-        unsafe { std::slice::from_raw_parts(bstr, SysStringLen(bstr) as usize) }
+        if bstr != std::ptr::null_mut() {
+            unsafe {
+                Ok(std::slice::from_raw_parts(
+                    bstr,
+                    SysStringLen(bstr) as usize,
+                ))
+            }
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -124,12 +147,11 @@ mod tests {
         let test_line_string = String::from(TEST_LINE);
         let mut auto_bstr: AutoBSTR = test_line_string.try_into().unwrap();
         SysFreeString(auto_bstr.0.get());
-        unsafe { 
-            *auto_bstr.as_mut_ptr() = 0xA5A5A5A5 as BSTR; 
+        unsafe {
+            *auto_bstr.as_mut_ptr() = 0xA5A5A5A5 as BSTR;
             assert_eq!(*auto_bstr.as_mut_ptr(), *auto_bstr.as_ptr());
         }
         let bstr: BSTR = auto_bstr.into();
         assert_eq!(0xA5A5A5A5 as BSTR, bstr);
-
     }
 }
