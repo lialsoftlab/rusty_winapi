@@ -14,7 +14,7 @@ keywords = ["winapi", "win32", "OLE", "COM",]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winapi = { version = "0.3", features = ["impl-default", "oleauto",] }
+winapi = { version = "0.3", features = ["impl-default", "combaseapi", "oaidl", "oleauto", "objbase", "winerror"] }
 
 [package.metadata.docs.rs]
 default-target = "x86_64-pc-windows-gnu"
