@@ -81,7 +81,7 @@ pub trait SmartIDispatch: SmartIUnknown {
     }
 
     fn invoke(
-        &mut self,
+        &self,
         member_dispid: DISPID,
         lcid: LCID,
         flags: WORD,
@@ -101,7 +101,7 @@ pub trait SmartIDispatch: SmartIUnknown {
             let mut ex_info: EXCEPINFO = std::mem::zeroed();
             let mut arg = UINT::default();
 
-            let hresult = self.as_idispatch_mut().Invoke(
+            let hresult = self.as_idispatch().Invoke(
                 member_dispid,
                 &IID_NULL,
                 lcid,
@@ -120,8 +120,18 @@ pub trait SmartIDispatch: SmartIUnknown {
         }
     }
 
-    fn call(
+    fn invoke_mut(
         &mut self,
+        member_dispid: DISPID,
+        lcid: LCID,
+        flags: WORD,
+        params: &[SmartVariant],
+    ) -> Result<SmartVariant, (HRESULT, String, u32)> {
+        self.invoke(member_dispid, lcid, flags, params)
+    }
+
+    fn call(
+        &self,
         method: &str,
         params: &[SmartVariant],
     ) -> Result<SmartVariant, (HRESULT, String, u32)> {
@@ -131,7 +141,18 @@ pub trait SmartIDispatch: SmartIUnknown {
         }
     }
 
-    fn get(&mut self, property: &str) -> Result<SmartVariant, (HRESULT, String, u32)> {
+    fn call_mut(
+        &mut self,
+        method: &str,
+        params: &[SmartVariant],
+    ) -> Result<SmartVariant, (HRESULT, String, u32)> {
+        match self.get_ids_of_names(&[method], LOCALE_USER_DEFAULT) {
+            (ids, S_OK) => self.invoke_mut(ids[0], LOCALE_USER_DEFAULT, DISPATCH_METHOD, params),
+            (_, e) => Err((e, "get_ids_of_names()".into(), 0)),
+        }
+    }
+
+    fn get(&self, property: &str) -> Result<SmartVariant, (HRESULT, String, u32)> {
         match self.get_ids_of_names(&[property], LOCALE_USER_DEFAULT) {
             (ids, S_OK) => self.invoke(ids[0], LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &[]),
             (_, e) => Err((e, "get_ids_of_names()".into(), 0)),
@@ -144,7 +165,9 @@ pub trait SmartIDispatch: SmartIUnknown {
         value: SmartVariant,
     ) -> Result<SmartVariant, (HRESULT, String, u32)> {
         match self.get_ids_of_names(&[property], LOCALE_USER_DEFAULT) {
-            (ids, S_OK) => self.invoke(ids[0], LOCALE_USER_DEFAULT, DISPATCH_PROPERTYPUT, &[value]),
+            (ids, S_OK) => {
+                self.invoke_mut(ids[0], LOCALE_USER_DEFAULT, DISPATCH_PROPERTYPUT, &[value])
+            }
             (_, e) => Err((e, "get_ids_of_names()".into(), 0)),
         }
     }
@@ -171,81 +194,4 @@ impl SmartIDispatch for AutoCOMInterface<IDispatch> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::auto_bstr::*;
-    use std::convert::TryInto;
-    use winapi::um::combaseapi::{CoCreateInstance, CoGetClassObject, CLSCTX_ALL};
-
-    // 1C ComConnector (comcntr.dll) class
-    RIDL! {#[uuid(0x181E893D, 0x73A4, 0x4722, 0xB6, 0x1D, 0xD6, 0x04, 0xB3, 0xD6, 0x7D, 0x47)]
-    class V8COMConnectorClass;
-    }
-    pub type LPV8COMCONNECTORCLASS = *mut V8COMConnectorClass;
-
-    RIDL! {#[uuid(0xba4e52bd, 0xdcb2, 0x4bf7, 0xbb, 0x29, 0x84, 0xc1, 0xca, 0x45, 0x6a, 0x8f)]
-    interface IV8COMConnector(IV8COMConnectorVtbl): IDispatch(IDispatchVtbl) {
-        fn Connect(
-            connectString: BSTR,
-            conn: *mut LPDISPATCH,
-        ) -> HRESULT,
-    }}
-    pub type LPV8COMCONNECTOR = *mut IV8COMConnector;
-
-    #[test]
-    fn test_AutoCOMInterface_create_instance() {
-        let hr = unsafe {
-            winapi::um::combaseapi::CoInitializeEx(
-                winapi::shared::ntdef::NULL,
-                winapi::um::objbase::COINIT_MULTITHREADED,
-            )
-        };
-        assert!(winerror::SUCCEEDED(hr));
-
-        let v8cc = AutoCOMInterface::<IV8COMConnector>::create_instance(
-            &<V8COMConnectorClass as Class>::uuidof(),
-            std::ptr::null_mut(),
-            CLSCTX_ALL,
-        )
-        .unwrap();
-
-        assert_ne!(v8cc.as_iunknown_ptr(), std::ptr::null_mut());
-
-        let conn1Cdb_bstr: AutoBSTR =
-            r#"Srvr="192.168.6.93";Ref="Trade_EP_Today_COPY";"#.try_into().unwrap();
-
-        let mut conn1Cdb: LPDISPATCH = std::ptr::null_mut();
-
-        let hr = unsafe { v8cc.as_inner().Connect(conn1Cdb_bstr.into(), &mut conn1Cdb) };
-
-        assert!(winapi::shared::winerror::SUCCEEDED(hr));
-
-        let mut conn1Cdb: AutoCOMInterface<IDispatch> = conn1Cdb.try_into().unwrap();
-
-        let dispids = conn1Cdb.get_ids_of_names(
-            &[
-                "NewObject",
-                "ПолучитьСтруктуруХраненияБазыДанных",
-            ],
-            LOCALE_USER_DEFAULT,
-        );
-
-        assert!(winapi::shared::winerror::SUCCEEDED(dispids.1));
-
-        assert_eq!(dispids.0[1], 0);
-
-        // let mut kv: AutoCOMInterface<IDispatch> = conn1Cdb
-        //     .call(
-        //         "ПолучитьСтруктуруХраненияБазыДанных",
-        //         &[SmartVariant::Empty, SmartVariant::Bool(true)],
-        //     )
-        //     .unwrap()
-        //     .try_into()
-        //     .unwrap();
-        // let count = kv.call("Количество", &[]).unwrap();
-
-        // assert_eq!(count, SmartVariant::Int4(0));
-
-        unsafe { winapi::um::combaseapi::CoUninitialize() };
-    }
-}
+mod tests {}

@@ -4,8 +4,11 @@
 //!
 
 use std::cell::Cell;
-use std::convert::{AsRef, AsMut, TryFrom, TryInto};
+use std::clone::Clone;
+use std::cmp::PartialEq;
+use std::convert::{AsMut, AsRef, TryFrom, TryInto};
 use std::error::Error;
+use std::fmt::{self, Debug};
 use std::ops::{Deref, DerefMut};
 
 use winapi::shared::guiddef::{IID_NULL, REFCLSID, REFIID};
@@ -26,6 +29,7 @@ use winapi::um::unknwnbase::{IClassFactory, IClassFactoryVtbl, IUnknown, IUnknow
 use winapi::um::winnt::{LOCALE_USER_DEFAULT, LONG, LPCSTR, LPSTR, WCHAR};
 use winapi::{Class, Interface, RIDL};
 
+use crate::smart_iunknown::SmartIUnknown;
 use crate::smart_variant::*;
 
 pub struct AutoCOMInterface<T: Interface>(*mut T);
@@ -67,11 +71,12 @@ impl<T: Interface> AutoCOMInterface<T> {
         unsafe { &mut *self.0 }
     }
 
-    pub fn unwrap(&mut self) -> *mut T {
-        let result = self.0;
-        self.0 = std::ptr::null_mut();
+    pub fn unwrap(&self) -> *mut T {
+        if self.0 != std::ptr::null_mut() {
+            self.add_ref();
+        }
 
-        result
+        self.0
     }
 
     pub fn get_class_object(
@@ -127,13 +132,43 @@ impl<T: Interface> Default for AutoCOMInterface<T> {
     }
 }
 
+impl<T: Interface> Clone for AutoCOMInterface<T> {
+    fn clone(&self) -> Self {
+        if self.0 != std::ptr::null_mut() {
+            unsafe {
+                self.add_ref();
+            }
+        }
+
+        AutoCOMInterface::<T>(self.0)
+    }
+}
+
+impl<T: Interface> Debug for AutoCOMInterface<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "AutoCOMInterface(0x{:X})", self.0 as usize)
+    }
+}
+
 impl<T: Interface> Drop for AutoCOMInterface<T> {
     fn drop(&mut self) {
         if self.0 != std::ptr::null_mut() {
             unsafe {
-                self.as_iunknown().Release();
+                self.release();
             }
         }
+    }
+}
+
+impl<T: Interface> PartialEq for AutoCOMInterface<T> {
+    fn eq(&self, other: &AutoCOMInterface<T>) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T: Interface> PartialEq<*mut T> for AutoCOMInterface<T> {
+    fn eq(&self, other: &*mut T) -> bool {
+        self.0 == *other
     }
 }
 
@@ -152,8 +187,8 @@ impl<T: Interface> DerefMut for AutoCOMInterface<T> {
 }
 
 impl<T: Interface> AsRef<T> for AutoCOMInterface<T> {
-    fn as_ref(&self) ->&T {
-        unsafe{ &*self.0 }
+    fn as_ref(&self) -> &T {
+        unsafe { &*self.0 }
     }
 }
 
@@ -175,83 +210,5 @@ impl<T: Interface> TryFrom<*mut T> for AutoCOMInterface<T> {
     }
 }
 
-impl TryFrom<SmartVariant> for AutoCOMInterface<IUnknown> {
-    type Error = &'static str;
-
-    /// Try to convert string slice into UTF-16 encoded string, and transform it to new BSTR instance.
-    #[inline]
-    fn try_from(x: SmartVariant) -> Result<Self, Self::Error> {
-        match x {
-            SmartVariant::IUnknown(x) => unsafe { AutoCOMInterface::try_from(x) },
-            _ => Err("SmartVartiant doesn't contains pointer to IUnknown!"),
-        }
-    }
-}
-
-impl TryFrom<SmartVariant> for AutoCOMInterface<IDispatch> {
-    type Error = &'static str;
-
-    /// Try to convert string slice into UTF-16 encoded string, and transform it to new BSTR instance.
-    #[inline]
-    fn try_from(x: SmartVariant) -> Result<Self, Self::Error> {
-        match x {
-            SmartVariant::IDispatch(x) => unsafe { AutoCOMInterface::try_from(x) },
-            _ => Err("SmartVartiant doesn't contains pointer to IDispatch!"),
-        }
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::auto_bstr::*;
-    use std::convert::TryInto;
-
-    // 1C ComConnector (comcntr.dll) class
-    RIDL! {#[uuid(0x181E893D, 0x73A4, 0x4722, 0xB6, 0x1D, 0xD6, 0x04, 0xB3, 0xD6, 0x7D, 0x47)]
-    class V8COMConnectorClass;
-    }
-    pub type LPV8COMCONNECTORCLASS = *mut V8COMConnectorClass;
-
-    RIDL! {#[uuid(0xba4e52bd, 0xdcb2, 0x4bf7, 0xbb, 0x29, 0x84, 0xc1, 0xca, 0x45, 0x6a, 0x8f)]
-    interface IV8COMConnector(IV8COMConnectorVtbl): IDispatch(IDispatchVtbl) {
-        fn Connect(
-            connectString: BSTR,
-            conn: *mut LPDISPATCH,
-        ) -> HRESULT,
-    }}
-    pub type LPV8COMCONNECTOR = *mut IV8COMConnector;
-
-    // #[test]
-    fn test_AutoCOMInterface_create_instance() {
-        let hr = unsafe {
-            winapi::um::combaseapi::CoInitializeEx(
-                winapi::shared::ntdef::NULL,
-                winapi::um::objbase::COINIT_MULTITHREADED,
-            )
-        };
-        assert!(winerror::SUCCEEDED(hr));
-
-        let v8cc = AutoCOMInterface::<IV8COMConnector>::create_instance(
-            &<V8COMConnectorClass as Class>::uuidof(),
-            std::ptr::null_mut(),
-            CLSCTX_ALL,
-        )
-        .unwrap();
-
-        assert_ne!(v8cc.as_iunknown_ptr(), std::ptr::null_mut());
-
-        let conn1Cdb_bstr: AutoBSTR =
-            r#"Srvr="192.168.6.93";Ref="Trade_EP_Today_COPY";"#.try_into().unwrap();
-
-        let mut conn1Cdb: LPDISPATCH = std::ptr::null_mut();
-
-        let hr = unsafe { v8cc.as_inner().Connect(conn1Cdb_bstr.into(), &mut conn1Cdb) };
-
-        assert!(winapi::shared::winerror::SUCCEEDED(hr));
-
-        let conn1Cdb: AutoCOMInterface<IDispatch> = conn1Cdb.try_into().unwrap();
-
-        unsafe { winapi::um::combaseapi::CoUninitialize() };
-    }
-}
+mod tests {}

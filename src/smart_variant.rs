@@ -13,7 +13,9 @@
 
 use std::any::Any;
 use std::cell::Cell;
-use std::convert::{AsMut, AsRef, TryFrom};
+use std::convert::{AsMut, AsRef, TryFrom, TryInto};
+use std::error::Error;
+use std::fmt;
 
 use winapi::shared::minwindef::UINT;
 use winapi::shared::ntdef::*;
@@ -23,6 +25,7 @@ use winapi::um::oaidl::*;
 use winapi::um::unknwnbase::*;
 
 use crate::auto_bstr::AutoBSTR;
+use crate::auto_com_interface::AutoCOMInterface;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SmartVariant {
@@ -34,11 +37,11 @@ pub enum SmartVariant {
     //Currency(CY),
     Date(f64),
     Text(String),
-    IDispatch(LPDISPATCH),
+    IDispatch(AutoCOMInterface<IDispatch>),
     ErrorCode(i32), // SCODE
     Bool(bool),
     Variant(LPVARIANT),
-    IUnknown(LPUNKNOWN),
+    IUnknown(AutoCOMInterface<IUnknown>),
     //Decimal(i128),
     Int1(i8),
     UInt1(u8),
@@ -319,11 +322,11 @@ impl From<AutoVariant> for SmartVariant {
                 //VT_CY => SmartVariant::Currency(*x.data().cyVal()), // Currency. (i64)
                 VT_DATE => SmartVariant::Date(*x.data().date()), // A date. (f64)
                 VT_BSTR => SmartVariant::Text(AutoBSTR::from(*x.data().bstrVal()).into()), // A string.
-                VT_DISPATCH => SmartVariant::IDispatch(*x.data().pdispVal()), //An IDispatch pointer.
+                VT_DISPATCH => SmartVariant::IDispatch((*x.data().pdispVal()).try_into().unwrap()), //An IDispatch pointer.
                 VT_ERROR => SmartVariant::ErrorCode(*x.data().scode()), // An SCODE value. (i32)
                 VT_BOOL => SmartVariant::Bool(*x.data().boolVal() == -1), //A Boolean value. True is -1 and false is 0. (i16)
                 VT_VARIANT => SmartVariant::Variant(*x.data().pvarVal()), // A variant pointer.
-                VT_UNKNOWN => SmartVariant::IUnknown(*x.data().punkVal()), // An IUnknown pointer.
+                VT_UNKNOWN => SmartVariant::IUnknown((*x.data().punkVal()).try_into().unwrap()), // An IUnknown pointer.
                 //VT_DECIMAL => SmartVariant::Decimal(*x.data().pdecVal()), // A 16-byte fixed-pointer value.
                 VT_I1 => SmartVariant::Int1(*x.data().cVal()), // A character. (i8)
                 VT_UI1 => SmartVariant::UInt1(*x.data().bVal()), // An unsigned character. (u8)
@@ -387,7 +390,7 @@ impl From<SmartVariant> for AutoVariant {
                 } // A string.
                 SmartVariant::IDispatch(x) => {
                     *result.vtype_mut() = VT_DISPATCH as u16;
-                    *result.data_mut().pdispVal_mut() = x;
+                    *result.data_mut().pdispVal_mut() = x.unwrap();
                     result
                 } //An IDispatch pointer.
                 SmartVariant::ErrorCode(x) => {
@@ -407,7 +410,7 @@ impl From<SmartVariant> for AutoVariant {
                 } // A variant pointer.
                 SmartVariant::IUnknown(x) => {
                     *result.vtype_mut() = VT_UNKNOWN as u16;
-                    *result.data_mut().punkVal_mut() = x;
+                    *result.data_mut().punkVal_mut() = x.unwrap();
                     result
                 } // An IUnknown pointer.
                 //SmartVariant::Decimal(x) => { *result.vtype_mut() = VT_DECIMAL as u16; *result.data_mut().pdecVal_mut() = x; result }, // A 16-byte fixed-pointer value.
@@ -463,6 +466,346 @@ impl From<SmartVariant> for VARIANT {
         AutoVariant::from(x).into()
     }
 }
+
+impl From<i16> for SmartVariant {
+    fn from(x: i16) -> SmartVariant {
+        SmartVariant::Int2(x)
+    }
+}
+
+impl From<i32> for SmartVariant {
+    fn from(x: i32) -> SmartVariant {
+        SmartVariant::Int4(x)
+    }
+}
+
+impl From<f32> for SmartVariant {
+    fn from(x: f32) -> SmartVariant {
+        SmartVariant::Real4(x)
+    }
+}
+
+impl From<f64> for SmartVariant {
+    fn from(x: f64) -> SmartVariant {
+        SmartVariant::Real8(x)
+    }
+}
+
+impl From<String> for SmartVariant {
+    fn from(x: String) -> SmartVariant {
+        SmartVariant::Text(x)
+    }
+}
+
+impl From<&str> for SmartVariant {
+    fn from(x: &str) -> SmartVariant {
+        SmartVariant::Text(x.into())
+    }
+}
+
+impl From<AutoCOMInterface<IDispatch>> for SmartVariant {
+    fn from(x: AutoCOMInterface<IDispatch>) -> SmartVariant {
+        SmartVariant::IDispatch(x)
+    }
+}
+
+impl From<bool> for SmartVariant {
+    fn from(x: bool) -> SmartVariant {
+        SmartVariant::Bool(x)
+    }
+}
+
+impl From<LPVARIANT> for SmartVariant {
+    fn from(x: LPVARIANT) -> SmartVariant {
+        SmartVariant::Variant(x)
+    }
+}
+
+impl From<AutoCOMInterface<IUnknown>> for SmartVariant {
+    fn from(x: AutoCOMInterface<IUnknown>) -> SmartVariant {
+        SmartVariant::IUnknown(x)
+    }
+}
+
+impl From<i8> for SmartVariant {
+    fn from(x: i8) -> SmartVariant {
+        SmartVariant::Int1(x)
+    }
+}
+
+impl From<u8> for SmartVariant {
+    fn from(x: u8) -> SmartVariant {
+        SmartVariant::UInt1(x)
+    }
+}
+
+impl From<u16> for SmartVariant {
+    fn from(x: u16) -> SmartVariant {
+        SmartVariant::UInt2(x)
+    }
+}
+
+impl From<u32> for SmartVariant {
+    fn from(x: u32) -> SmartVariant {
+        SmartVariant::UInt4(x)
+    }
+}
+
+// impl From<i32> for SmartVariant {
+//     fn from(x: i32) -> SmartVariant {
+//         SmartVariant::Int(x)
+//     }
+// }
+
+// impl From<u32> for SmartVariant {
+//     fn from(x: u32) -> SmartVariant {
+//         SmartVariant::UInt(x)
+//     }
+// }
+
+impl From<LPSAFEARRAY> for SmartVariant {
+    fn from(x: LPSAFEARRAY) -> SmartVariant {
+        SmartVariant::Array(x)
+    }
+}
+
+impl From<PVOID> for SmartVariant {
+    fn from(x: PVOID) -> SmartVariant {
+        SmartVariant::ByRef(x)
+    }
+}
+
+impl TryFrom<SmartVariant> for i8 {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<i8, Self::Error> {
+        match x {
+            SmartVariant::Int1(x) => Ok(x),
+            SmartVariant::Int2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for i16 {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<i16, Self::Error> {
+        match x {
+            SmartVariant::Int1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int2(x) => Ok(x),
+            SmartVariant::Int4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for i32 {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<i32, Self::Error> {
+        match x {
+            SmartVariant::Int1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int4(x) => Ok(x),
+            SmartVariant::UInt1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int(x) => Ok(x),
+            SmartVariant::UInt(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for u8 {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<u8, Self::Error> {
+        match x {
+            SmartVariant::Int1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt1(x) => Ok(x),
+            SmartVariant::UInt2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for u16 {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<u16, Self::Error> {
+        match x {
+            SmartVariant::Int1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt2(x) => Ok(x),
+            SmartVariant::UInt4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for u32 {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<u32, Self::Error> {
+        match x {
+            SmartVariant::Int1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt4(x) => Ok(x),
+            SmartVariant::Int(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt(x) => Ok(x),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for f32 {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<f32, Self::Error> {
+        match x {
+            SmartVariant::Int1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Real4(x) => Ok(x),
+            SmartVariant::UInt1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for f64 {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<f64, Self::Error> {
+        match x {
+            SmartVariant::Int1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Real4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Real8(x) => Ok(x),
+            SmartVariant::Date(x) => Ok(x),
+            SmartVariant::UInt1(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt2(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt4(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::Int(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            SmartVariant::UInt(x) => x.try_into().map_err(|_| TryFromSmartVariantError),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for String {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<String, Self::Error> {
+        match x {
+            SmartVariant::Text(x) => Ok(x),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for AutoCOMInterface<IDispatch> {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<AutoCOMInterface<IDispatch>, Self::Error> {
+        match x {
+            SmartVariant::IDispatch(x) => Ok(x),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for bool {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<bool, Self::Error> {
+        match x {
+            SmartVariant::Bool(x) => Ok(x),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for LPVARIANT {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<LPVARIANT, Self::Error> {
+        match x {
+            SmartVariant::Variant(x) => Ok(x),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for AutoCOMInterface<IUnknown> {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<AutoCOMInterface<IUnknown>, Self::Error> {
+        match x {
+            SmartVariant::IUnknown(x) => Ok(x),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for LPSAFEARRAY {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<LPSAFEARRAY, Self::Error> {
+        match x {
+            SmartVariant::Array(x) => Ok(x),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+impl TryFrom<SmartVariant> for PVOID {
+    type Error = TryFromSmartVariantError;
+
+    fn try_from(x: SmartVariant) -> Result<PVOID, Self::Error> {
+        match x {
+            SmartVariant::ByRef(x) => Ok(x),
+            _ => Err(TryFromSmartVariantError),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct TryFromSmartVariantError;
+
+impl fmt::Display for TryFromSmartVariantError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TryFromSmartVariantError")
+    }
+}
+
+impl Error for TryFromSmartVariantError {}
 
 #[cfg(test)]
 mod tests {

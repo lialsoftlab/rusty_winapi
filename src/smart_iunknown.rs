@@ -49,12 +49,12 @@ pub trait SmartIUnknown {
         }
     }
 
-    fn add_ref(&mut self) -> ULONG {
-        unsafe { self.as_iunknown_mut().AddRef() }
+    fn add_ref(&self) -> ULONG {
+        unsafe { self.as_iunknown().AddRef() }
     }
 
-    fn release(&mut self) -> ULONG {
-        unsafe { self.as_iunknown_mut().Release() }
+    fn release(&self) -> ULONG {
+        unsafe { self.as_iunknown().Release() }
     }
 }
 
@@ -78,80 +78,5 @@ impl<T: Interface> SmartIUnknown for AutoCOMInterface<T> {
     }
 }
 
-// impl Drop for SmartIUnknown {
-//     fn drop(&mut self) {
-//         self.release();
-//     }
-// }
-
-// impl From<LPUNKNOWN> for SmartIUnknown {
-//     fn from(x: LPUNKNOWN) -> Self {
-//         SmartIUnknown((x).try_into().unwrap())
-//     }
-// }
-
-// impl<T: Interface> From<AutoCOMInterface<T>> for SmartIUnknown {
-//     fn from(x: AutoCOMInterface<T>) -> Self {
-//         x.as_iunknown().AddRef();
-//         x.as_iunknown_ptr().into()
-//     }
-// }
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::auto_bstr::*;
-    use std::convert::TryInto;
-
-    // 1C ComConnector (comcntr.dll) class
-    RIDL! {#[uuid(0x181E893D, 0x73A4, 0x4722, 0xB6, 0x1D, 0xD6, 0x04, 0xB3, 0xD6, 0x7D, 0x47)]
-    class V8COMConnectorClass;
-    }
-    pub type LPV8COMCONNECTORCLASS = *mut V8COMConnectorClass;
-
-    RIDL! {#[uuid(0xba4e52bd, 0xdcb2, 0x4bf7, 0xbb, 0x29, 0x84, 0xc1, 0xca, 0x45, 0x6a, 0x8f)]
-    interface IV8COMConnector(IV8COMConnectorVtbl): IDispatch(IDispatchVtbl) {
-        fn Connect(
-            connectString: BSTR,
-            conn: *mut LPDISPATCH,
-        ) -> HRESULT,
-    }}
-    pub type LPV8COMCONNECTOR = *mut IV8COMConnector;
-
-    //#[test]
-    fn test_AutoCOMInterface_create_instance() {
-        let hr = unsafe {
-            winapi::um::combaseapi::CoInitializeEx(
-                winapi::shared::ntdef::NULL,
-                winapi::um::objbase::COINIT_MULTITHREADED,
-            )
-        };
-        assert!(winerror::SUCCEEDED(hr));
-
-        let v8cc = AutoCOMInterface::<IV8COMConnector>::create_instance(
-            &<V8COMConnectorClass as Class>::uuidof(),
-            std::ptr::null_mut(),
-            CLSCTX_ALL,
-        )
-        .unwrap();
-
-        assert_ne!(v8cc.as_iunknown_ptr(), std::ptr::null_mut());
-
-        let conn1Cdb_bstr: AutoBSTR =
-            r#"Srvr="192.168.6.93";Ref="Trade_EP_Today_COPY";"#.try_into().unwrap();
-
-        let mut conn1Cdb: LPDISPATCH = std::ptr::null_mut();
-
-        let hr = unsafe { v8cc.as_inner().Connect(conn1Cdb_bstr.into(), &mut conn1Cdb) };
-
-        assert!(winapi::shared::winerror::SUCCEEDED(hr));
-
-        //        let mut conn1Cdb: AutoCOMInterface<IDispatch> = conn1Cdb.try_into().unwrap();
-        let mut conn1Cdb: &mut IUnknown =
-            unsafe { &mut *(conn1Cdb as *mut IDispatch as *mut IUnknown) };
-
-        conn1Cdb.add_ref();
-
-        unsafe { winapi::um::combaseapi::CoUninitialize() };
-    }
-}
+mod tests {}
