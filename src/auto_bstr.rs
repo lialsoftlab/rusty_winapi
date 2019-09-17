@@ -13,7 +13,8 @@
 //! [`String`]: https://doc.rust-lang.org/std/string/struct.String.html
 
 use std::cell::Cell;
-use std::convert::{TryFrom, TryInto};
+use std::convert::{AsMut, AsRef, TryFrom, TryInto};
+use std::ops::{Deref, DerefMut};
 
 use winapi::shared::ntdef::{NULL, PVOID};
 use winapi::shared::wtypes::BSTR;
@@ -54,6 +55,32 @@ impl Default for AutoBSTR {
 impl Drop for AutoBSTR {
     fn drop(&mut self) {
         SysFreeString(self.0.get()); // NULL is ok, function just returns.
+    }
+}
+
+impl Deref for AutoBSTR {
+    type Target = BSTR;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.0.as_ptr() }
+    }
+}
+
+impl DerefMut for AutoBSTR {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.get_mut()
+    }
+}
+
+impl AsRef<BSTR> for AutoBSTR {
+    fn as_ref(&self) -> &BSTR {
+        unsafe { &*self.0.as_ptr() }
+    }
+}
+
+impl AsMut<BSTR> for AutoBSTR {
+    fn as_mut(&mut self) -> &mut BSTR {
+        self.0.get_mut()
     }
 }
 
