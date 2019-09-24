@@ -54,6 +54,15 @@ pub enum SmartVariant {
     ByRef(PVOID), // mask value?
 }
 
+impl SmartVariant {
+    pub fn into_option<T>(self) -> Result<Option<T>, T::Error> where T: TryFrom<SmartVariant> {
+        match self {
+            SmartVariant::Empty => Ok(None),
+            x => T::try_from(x).map(|x| Some(x)),
+        }
+    }
+}
+
 pub struct AutoVariant(Cell<VARIANT>);
 
 impl AutoVariant {
@@ -572,6 +581,16 @@ impl From<LPSAFEARRAY> for SmartVariant {
 impl From<PVOID> for SmartVariant {
     fn from(x: PVOID) -> SmartVariant {
         SmartVariant::ByRef(x)
+    }
+}
+
+impl<T> From<Option<T>> for SmartVariant where SmartVariant: std::convert::From<T> {
+    #[inline]
+    fn from(x: Option<T>) -> Self {
+        match x {
+            None => SmartVariant::Empty,
+            Some(x) => x.into(),
+        }
     }
 }
 
